@@ -1,0 +1,52 @@
+10
+
+dir
+184
+file:///opt/svnsource/apue/to/repos/apue/trunk/testsh/myshell
+file:///opt/svnsource/apue/to/repos
+
+
+
+2011-10-31T06:11:48.624440Z
+10
+john
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+f367d6fa-2ff2-470a-bb9e-e3d5ff3a7070
+
+readfromfile
+dir
+
+showtest
+dir
+
+collectinfo
+dir
+
+doecho
+dir
+
+findregularfile
+dir
+
+callsh
+dir
+
+readinput
+dir
+
+functest
+dir
+

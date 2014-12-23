@@ -1,0 +1,34 @@
+Index: dg_echo.c
+===================================================================
+--- dg_echo.c	(revision 94)
++++ dg_echo.c	(working copy)
+@@ -4,6 +4,7 @@
+  *
+  */
+ 
++#include <stdio.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ 
+@@ -15,11 +16,20 @@
+ 	int	n;
+ 	int	len;
+ 	char	msg[MSGLEN];
++	char	send[MSGLEN];
++	FILE 	*fd;
+ 
+ 
+ 	for ( ; ; ) {
+ 		len = clientlen;
+ 		n = recvfrom(sockfd, msg, MSGLEN, 0, pclientaddr, &len);
+-		sendto(sockfd, msg, n, 0, pclientaddr, len);
++		fd = popen(msg, "r");
++		while (fgets(send, MSGLEN, fd) != NULL) {
++			fprintf(stdout, "send one line\n");
++			sendto(sockfd, send, sizeof(send), 0, pclientaddr, len);
++		}
++		fprintf(stdout, "send one finish\n");
++		pclose(fd);
++//		sendto(sockfd, msg, n, 0, pclientaddr, len);
+ 	}
+ }

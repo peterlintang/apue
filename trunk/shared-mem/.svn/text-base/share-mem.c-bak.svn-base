@@ -1,0 +1,160 @@
+
+/*
+ * interface to create a shared memory
+ * need to reconsider the interface for processes access, this now is not processes shared
+ */
+
+/*
+#include <stdio.h>
+#include <stdlib.h>
+//#include <pthread.h>
+*/
+
+#include <sys/types.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+#include <string.h>
+#include <errno.h>
+
+#include "share-mem.h"
+
+static shared_mem_t *john_lins_shm = NULL;
+
+shared_mem_t *create_shared_mem(const char *pathname, int id, 
+				int size, int shmflg, 
+				const void *shmaddr, int shmflg2)
+{
+	key_t		key;
+	int		shmid;
+	void		*ptr = NULL;
+	shared_mem_t 	*mem = calloc(1, sizeof(*mem));
+
+	if (!pathname) return NULL;
+
+	if (!(mem = calloc(1, sizeof(*mem)))) return NULL;
+
+	if (((key = ftok(pathname, id)) == -1) || 
+		((shmid = shmget(key, size, shmflg)) == -1)) {
+		perror("shmget");
+		goto err;
+	}
+
+/*
+	if ((ptr = shmat(shmid, shmaddr, shmflg2)) == (void *)-1) {
+		fprintf(stderr, "unable to get the address of shared memory\n");
+		perror("shmat");
+		goto err2;
+	}
+*/
+
+	mem->key 	= key;
+	mem->shmid	= shmid;
+	mem->ptr	= ptr;
+	mem->size	= size;
+	mem->read_cur	= 0;
+	mem->write_cur	= 0;
+//	pthread_mutex_init(&mem->lock);
+//	pthread_cond_init(&mem->cond);
+
+	fprintf(stdout, "shared memory id: %d\n", shmid);
+	return mem;
+err2:
+	shmctl(shmid, IPC_RMID, 0);
+err:
+	free(mem);
+	return NULL;
+}
+
+void destroy_shared_mem(shared_mem_t **shmpp)
+{
+	shared_mem_t *shm = NULL;
+	if (shmpp && (shm = *shmpp)) {
+//		shmdt(shm->ptr);
+		shmctl(shm->shmid, IPC_RMID, 0);
+		free(shm);
+		*shmpp = NULL;
+	}
+}
+
+int address_at(const void *shmaddr, int flags)
+{
+	void *ptr = NULL;
+
+	if ((ptr = shmat(shmid, shmaddr, flags)) == (void *)-1) {
+		fprintf(stderr, "unable to get the address of shared memory\n");
+		perror("shmat");
+		return -1;
+	}
+
+	john_lins_shm->ptr = ptr;
+	return 0;
+}
+
+int address_dt(void)
+{
+	shmdt(john_lins_shm->ptr);
+	return 0;
+}
+
+int read_shared_mem(shared_mem_t *shm, char *buf, int len)
+{
+	if (!shm || !buf || len < 0) {
+		//dfprintf(stdout, "<%s> arguments error\n", __func__);
+		return -1;
+	}
+
+	if (shm->read_cur < shm->write_cur) {
+		len = ((shm->read_cur + len) > shm->write_cur) ? (shm->write_cur - shm->read_cur) : len;
+	} else if (shm->read_cur > shm->write_cur) {
+		len = shm->size - shm->read_cur;
+	} else {
+		//dfprintf(stdout, "<%s> empty buf\n", __func__);
+		return 0;
+	}
+
+	fprintf(stdout, "read cur: %d, write cur: %d, read bytes: %d\n", 
+			shm->read_cur, shm->write_cur, len);
+
+	memcpy(buf, shm->ptr + shm->read_cur, len);
+
+	shm->read_cur += len;
+	if (shm->read_cur == shm->size -1)
+		shm->read_cur = 0;
+
+	fprintf(stdout, "read %d bytes\n", len);
+	return len;
+}
+
+int write_shared_mem(shared_mem_t *shm, char *buf, int len)
+{
+	if (!shm || !buf || len < 0) {
+//		dfprintf(stdout, "<%s> arguments error\n", __func__);
+		return -1;
+	}
+
+	if (shm->read_cur < shm->write_cur)
+		len = (len < shm->size - shm->write_cur) ? len : (shm->size - shm->write_cur);
+	else if (shm->write_cur + 1 == shm->read_cur) {
+//		dfprintf(stdout, "<%s> buf full\n", __func__);
+		fprintf(stdout, "buf is full\n");
+		return -2;
+	} else if (shm->read_cur == shm->write_cur)
+		len = len > (shm->size - shm->write_cur) ? (shm->size - shm->write_cur) : len;
+	else
+		len = shm->read_cur - shm->write_cur - 1;
+
+	fprintf(stdout, "read cur: %d, write cur: %d, write bytes: %d\n", 
+			shm->read_cur, shm->write_cur, len);
+
+	memcpy(shm->ptr + shm->write_cur, buf, len);
+
+	shm->write_cur += len;
+	if (shm->write_cur == shm->size -1)
+		shm->write_cur = 0;
+
+	fprintf(stdout, "write %d bytes\n", len);
+	return len;
+}
+
+
+

@@ -1,0 +1,15 @@
+#!/bin/bash
+##echo time every 5 seconds
+##
+
+while true; do
+
+	clear
+	currentdate=`date`
+	echo $currentdate
+	echo who is on
+	who
+	netstat -rn
+	sleep 5
+
+done

@@ -1,0 +1,7 @@
+
+#
+[linux]
+name = john;
+
+[win]
+name = lily;	#

@@ -1,0 +1,11 @@
+#include "apue.h"
+
+#define DEBUG
+#ifdef DEBUG
+#define dprintf(fmt, args...) fprintf(stdout, fmt, ##args)
+#else
+#define dprintf(fmt, args...)
+#endif
+#define errprintf(fmt, args...) fprintf(stderr, fmt, ##args)
+
+

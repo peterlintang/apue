@@ -1,0 +1,15 @@
+#!/bin/bash
+
+echo -n "enter your name:"
+read name
+echo "name=$name" >>./person.conf
+
+echo -n "enter your job:"
+read job
+echo "job=$job" >>./person.conf
+
+echo -n "enter your company:"
+read company
+echo "company=$company">>./person.conf
+
+echo "ok"
