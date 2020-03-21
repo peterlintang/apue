@@ -22,9 +22,9 @@
 #define FREE_OFF	0
 #define HASH_OFF	PTR_SZ
 
-#define un_lock
-#define writew_lock
-#define readw_lock
+#define un_lock(x, y, z, h)		1
+#define writew_lock(x, y, z, h)	1
+#define readw_lock(x, y, z, h)	1
 
 typedef unsigned long DBHASH;	/* hash value */
 typedef unsigned long COUNT;	/* unsigned count */
@@ -411,6 +411,8 @@ static int _db_find_and_lock(DB *db, const char *key, int writelock)
 	}
 
 	offset = _db_readptr(db, db->ptroff);
+//	fprintf(stdout, "%s: %s, offset: %ld, ptroff: %ld\n",
+//				   	__func__, key, offset, db->ptroff);
 	while (offset != 0)
 	{
 		nextoffset = _db_readidx(db, offset);
@@ -441,11 +443,15 @@ static off_t _db_readptr(DB *db, off_t offset)
 	char asciiptr[PTR_SZ + 1];
 
 	if (lseek(db->idxfd, offset, SEEK_SET) == -1)
+	{
+		perror("lseek");
 		return -1;
+	}
 	if (read(db->idxfd, asciiptr, PTR_SZ) != PTR_SZ)
 		return -1;
 
 	asciiptr[PTR_SZ] = 0;
+//	fprintf(stdout, "%s offset: %ld, asciiptr: %s\n", __func__, offset, asciiptr);
 
 	return atol(asciiptr);
 }
@@ -461,7 +467,10 @@ static off_t _db_readidx(DB *db, off_t offset)
 
 	if ((db->idxoff = lseek(db->idxfd, offset, 
 				offset == 0 ? SEEK_CUR : SEEK_SET)) == -1)
+	{
+//		perror("_db_readidx");
 		return -1;
+	}
 
 	iov[0].iov_base = asciiptr;
 	iov[0].iov_len = PTR_SZ;
@@ -505,6 +514,8 @@ static off_t _db_readidx(DB *db, off_t offset)
 	if ((db->datlen = atol(ptr2)) <= 0
 			|| db->datlen > DATLEN_MAX)
 		return -1;
+//	fprintf(stdout, "%s idxbuf: %s, datoff: %ld, datlen: %ld, ptrval: %ld, idxlen: %ld, offset: %ld\n", 
+//					__func__, db->idxbuf, db->datoff, db->datlen, db->ptrval, db->idxlen, offset);
 
 	return db->ptrval;
 }
@@ -520,6 +531,7 @@ static char *_db_readdat(DB *db)
 		return NULL;
 
 	db->datbuf[db->datlen - 1] = 0;
+//	fprintf(stdout, "%s offset: %ld, data: %s\n", __func__, db->datoff, db->datbuf);
 
 	return db->datbuf;
 }
@@ -579,6 +591,7 @@ static void _db_writedat(DB *db, const char *data, off_t offset, int whence)
 	if (writev(db->datfd, &iov[0], 2) != db->datlen)
 		return ;
 
+//	fprintf(stdout, "%s data: %s, offset: %ld\n", __func__, data, offset);
 	if (whence == SEEK_END)
 		if (un_lock(db->datfd, 0, SEEK_SET, 0) < 0)
 			return ;
@@ -592,6 +605,7 @@ static void _db_writeidx(DB *db, const char *key,
 	int		len = 0;
 	char	*fmt = NULL;
 
+//	fprintf(stdout, "%s key: %s, whence: %d, offset: %ld, ptrval: %ld\n", __func__, key, whence, offset, ptrval);
 	if ((db->ptrval = ptrval) < 0 || ptrval > PTR_MAX)
 		return ;
 
@@ -601,18 +615,25 @@ static void _db_writeidx(DB *db, const char *key,
 		fmt = "%s%c%ld%c%d\n";
 
 	sprintf(db->idxbuf, fmt, key, SEP, db->datoff, SEP, db->datlen);
-	if ((len == strlen(db->idxbuf)) < IDXLEN_MIN || len > IDXLEN_MAX)
+//	fprintf(stdout, "%s key: %s, whence: %d, offset: %ld, ptrval: %ld 4 : %s min: %d, max: %d, len: %ld\n",
+//				   	__func__, key, whence, offset, ptrval, db->idxbuf,
+//					IDXLEN_MIN,  IDXLEN_MAX,
+//					strlen(db->idxbuf));
+	if ((len = strlen(db->idxbuf)) < IDXLEN_MIN || len > IDXLEN_MAX)
 		return ;
 	sprintf(asciiptrlen, "%*ld%*d", PTR_SZ, ptrval, IDXLEN_SZ, len);
 
+//	fprintf(stdout, "%s key: %s, whence: %d, offset: %ld, ptrval: %ld 1\n", __func__, key, whence, offset, ptrval);
 	if (whence == SEEK_END)
 		if (writew_lock(db->idxfd, ((db->nhash + 1) * PTR_SZ) + 1,
 						SEEK_SET, 0) < 0)
 			return ;
 
+//	fprintf(stdout, "%s key: %s, whence: %d, offset: %ld, ptrval: %ld 2\n", __func__, key, whence, offset, ptrval);
 	if ((db->idxoff = lseek(db->idxfd, offset, whence)) == -1)
 		return ;
 
+//	fprintf(stdout, "%s key: %s, whence: %d, offset: %ld, ptrval: %ld 3\n", __func__, key, whence, offset, ptrval);
 	iov[0].iov_base = asciiptrlen;
 	iov[0].iov_len = PTR_SZ + IDXLEN_SZ;
 	iov[1].iov_base = db->idxbuf;
@@ -620,6 +641,7 @@ static void _db_writeidx(DB *db, const char *key,
 	if (writev(db->idxfd, &iov[0], 2) != PTR_SZ + IDXLEN_SZ + len)
 		return ;
 
+//	fprintf(stdout, "%s key: %s, whence: %d, offset: %ld, ptrval: %ld\n", __func__, key, whence, offset, ptrval);
 	if (whence == SEEK_END)
 		if (un_lock(db->idxfd, ((db->nhash + 1) * PTR_SZ) + 1,
 					SEEK_SET, 0) < 0)
@@ -639,6 +661,7 @@ static void _db_writeptr(DB *db, off_t offset, off_t ptrval)
 		return ;
 	if (write(db->idxfd, asciiptr, PTR_SZ) != PTR_SZ)
 		return ;
+//	fprintf(stdout, "%s offset: %ld, ptrval: %ld\n", __func__, offset, ptrval);
 }
 
 static int _db_findfree(DB *db, int keylen, int datlen)
